@@ -3,11 +3,14 @@
  */
 
 const axios = require('axios');
+const notify = require('./sendNotify.js');
 
 // ==================== 配置区域 ====================
 const CONFIG = {
     // token配置
     MIFAN_TOKEN: process.env.MIFAN_TOKEN,
+    MIFAN_SUCCESS_NOTIFY: process.env.MIFAN_SUCCESS_NOTIFY || 'false',
+    MIFAN_FAIL_NOTIFY: process.env.MIFAN_FAIL_NOTIFY || 'false',
 
     // API配置
     SIGN_URL: 'https://mifan.61.com/api/v1/event/dailysign/',
@@ -71,6 +74,19 @@ class NetworkUtils {
     }
 }
 
+// ==================== 青龙面板通知函数 ====================
+async function ql_notify(title, content) {
+    try {
+        Logger.info('正在发送通知...');
+        await notify.sendNotify(title, content);
+        Logger.success('发送通知成功！');
+        return;
+    } catch (error) {
+        Logger.error(`通知发送失败: ${error.message}`);
+        return;
+    }
+}
+
 
 // ==================== 签到核心逻辑 ====================
 class MiFanSigner {
@@ -94,8 +110,8 @@ class MiFanSigner {
             }
             if (statusData.code === 200 && statusData.data) {
                 if (statusData.data === 1){
-                    Logger.success('今日已签到');
-                    this.signResult = '今日已签到';
+                    Logger.success('今日已签到！');
+                    this.signResult = '今日已签到！';
                     return true;
                 }else{
                     Logger.info('今日未签到，即将开始签到');
@@ -126,6 +142,9 @@ class MiFanSigner {
         }
     }
     
+    getResult() {
+        return this.signResult;
+    }
 }
 
 // ==================== 主程序 ====================
@@ -150,12 +169,17 @@ async function main() {
         Logger.info(`开始处理第 ${i + 1} 个账号:`);
         
         const signer = new MiFanSigner(tokens[i]);
-        let signStatus = false;
+        let signStatus = await signer.doSign();
         let resultMsg = '';
-        
-        // 执行签到
-        if (await signer.doSign()) {
-            signStatus = true;
+
+        // 发送成功通知
+        if (CONFIG.MIFAN_SUCCESS_NOTIFY === 'true' && signStatus){
+            await ql_notify('米饭APP每日签到脚本通知', `账号 ${i+1} 今日签到成功!`)
+        }
+        // 发送失败通知
+        if (CONFIG.MIFAN_FAIL_NOTIFY === 'true' && !signStatus){
+            let msg = signer.getResult();
+            await ql_notify('米饭APP每日签到脚本通知', `账号 ${i+1} 今日签到失败：\n ${msg}`)
         }
         
         // 结果信息
@@ -175,11 +199,9 @@ async function main() {
         }
     }
     
-    // 输出最终统计
+    // 最终统计
     const successCount = results.filter(r => r.status).length;
     const failCount = results.length - successCount;
-    
-    // 输出最终统计
     Logger.info('==================================================');
     Logger.success(`签到脚本结束! 成功: ${successCount}, 失败: ${failCount}`);
     Logger.info('==================================================');
