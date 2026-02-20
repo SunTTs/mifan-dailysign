@@ -17,7 +17,7 @@
 | :--- | :--- |
 | 名称 | `米饭APP签到` |
 | 地址 | `https://github.com/SunTTs/mifan-dailysign.git` |
-| 分支 | `master` |
+| 分支 | `main` |
 | 定时 | `0 12 * * *`（每天上午12点执行） |
 
 ### 2. 配置环境变量
